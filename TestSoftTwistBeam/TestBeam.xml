@@ -1,0 +1,72 @@
+﻿<mujoco>
+	<option gravity="0 0 -10"/>
+	<option timestep="0.0001" />
+	<worldbody>
+		<light diffuse=".5 .5 .5" pos="0 0 12" dir="0 0 -1"/>
+		
+<!--Than-->
+<body pos="0 0 1">
+			
+	
+	<!--Chan-->
+	<!--Thanh dam xoan 1-->
+	<body pos="-0.11 -0.06 0.0035">
+		<!-- Uon quanh X -->
+		<joint type="hinge" axis="-1 0 0" stiffness="1.062072" damping="2.21209" springref="0" pos="0 .01 0"/>
+		
+		<!-- Uon quanh Z -->
+		<joint type="hinge" axis="0 0 -1" stiffness="1.062072" damping="2.21209" springref="0" pos="0 .01 0"/>
+		<geom type="box" density="1200" size=".0083 .01 .0015" rgba="0 1 0 1"/>
+
+		<body pos="0 -.02 0" euler=" 0 45 0">
+			<!-- Uon quanh X -->
+			<joint type="hinge" axis="-1 0 0" stiffness="1.062072" damping="2.21209" springref="0" pos="0 .01 0"/>
+			<!-- Xoan quanh Y -->
+			<joint type="hinge" axis="0 -1 0" stiffness="0.0024" damping="0.00183" springref="0" pos="0 .01 0"/>
+			<!-- Uon quanh Z -->
+			<joint type="hinge" axis="0 0 -1" stiffness="1.062072" damping="2.21209" springref="0" pos="0 .01 0"/>
+			<geom type="box" density="1200" size=".0083 .01 .0015" rgba="0 1 0 1"/>
+
+			<body pos="0 -.02 0" euler=" 0 45 0">
+				<!-- Uon quanh X -->
+				<joint type="hinge" axis="-1 0 0" stiffness="1.062072" damping="2.21209" springref="0" pos="0 .01 0"/>
+				<!-- Xoan quanh Y -->
+				<joint type="hinge" axis="0 -1 0" stiffness="0.0024" damping="0.00183" springref="0" pos="0 .01 0" />
+				<!-- Uon quanh Z -->
+				<joint type="hinge" axis="0 0 -1" stiffness="1.062072" damping="2.21209" springref="0" pos="0 .01 0"/>
+				<geom type="box" density="1200" size=".0083 .01 .0015" rgba="0 1 0 1"/>
+				<!--Ban chan-->
+				
+				<body pos=" .035  -.0085 -0.004" euler=" 90 90 0">
+					<geom type="box" density="1240" size=".005 .0025 .04" rgba="1 0 0 1" friction="1 0.5 0.01"/>
+					
+					<body pos="0 0 0.04 " euler=" 0 0 0">
+						<geom type="sphere" density="1240" size=".0025" rgba="1 0 0 1" friction="1 0.5 0.01"/>
+						<site name="S1" rgba="0 1 1 .2"/>
+						<!--sensor-->
+					</body>
+
+				</body>
+
+			</body>
+		</body>
+	</body>
+
+
+	
+
+</body>
+		
+		
+
+	</worldbody>
+
+	
+	
+	<sensor>
+		<force name="Site1" site="S1"/>
+	
+	</sensor>
+	
+
+</mujoco>
