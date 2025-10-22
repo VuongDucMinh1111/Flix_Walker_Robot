@@ -9,9 +9,9 @@ import math                      # Các phép toán toán học
 import yaml                      # Làm việc với file YAML
 import mediapy as media          # Thư viện cho media (video, ảnh)
 import xml. etree . ElementTree as ET
+import traceback
 
-
-xml_path = 'Bai2_0test.xml' #xml file (assumes this is in the same folder as this file)
+xml_path = 'Bai2_0final.xml' #xml file (assumes this is in the same folder as this file)
 #xml_path = 'Idle(No_Rotor).xml' #xml file (assumes this is in the same folder as this file)
 
 simend = 500 #simulation time
@@ -24,7 +24,7 @@ button_right = False
 lastx = 0
 lasty = 0
 
-tree = ET.parse("Bai2_0test.xml")
+tree = ET.parse("Bai2_0final.xml") #Goc 2_0
 root = tree.getroot()
 
 # <!-- friction mac dinh: friction="0.6 0.002 0.002"-->
@@ -39,7 +39,7 @@ if len(options) > 0:
 else:
     option = ET.SubElement(root, "option")  # nếu chưa có thì mới tạo
 
-# Set lại timestep & iterations (0.001 - 0.002 / >100)
+# Set lại timestep & iterations (0.001 - 0.002 / >100) 
 option.set("timestep", "0.001")   # nhỏ hơn thì mô phỏng mượt hơn nhưng chậm
 option.set("iterations", "200")  # số vòng lặp solver mỗi bước
 
@@ -55,6 +55,11 @@ for elem in root.iter("joint"):
         elem.set("stiffness", "0.183")
         elem.set("damping", "0.24")
 
+for elem in root.iter("joint"):
+    if "Z" in elem.get("name", ""):
+        elem.set("stiffness", "1.062072")
+        elem.set("damping", "2.21209")
+
 # de 2 rotor ko va nhau, min = 2* .00125 = 0.0025
 for elem in root.iter("body"):
     if "A1" in elem.get("name", ""):
@@ -62,13 +67,17 @@ for elem in root.iter("body"):
     if "A2" in elem.get("name", ""):
         elem.set("pos", "0 -.014 -.005")
 
+# Damping rotor / damping="0.00000001" / damping="0.000005" / 0.0000032
+for elem in root.iter("joint"):
+    if "R" in elem.get("name", ""):
+        elem.set("damping", "0.00000")
+
+
 
 
 # Lưu file mới tree.write("Bai2_0test_modified.xml")
 #Lưu đè lên file cũ
-tree.write("Bai2_0test.xml")
-
-
+tree.write("Bai2_0final.xml")
 
 
 _overlay = {}
@@ -87,8 +96,35 @@ def create_overlay(model,data):
     bottomleft = mj.mjtGridPos.mjGRID_BOTTOMLEFT
     bottomright = mj.mjtGridPos.mjGRID_BOTTOMRIGHT
 
-    add_overlay(bottomleft,"Restart",'r' ,)
-    add_overlay(bottomleft, "Sim_Time", f"{data.time:.3f} s")
+    add_overlay(bottomleft, "Restart",'r' ,)
+    add_overlay(bottomleft, "Thoi_gian", f"{data.time:.3f} s")
+    add_overlay(bottomleft, "Tan_So", f"{f:.3f} Hz")
+    euler_deg = np.rad2deg(rotor_assembly_euler)
+    add_overlay(bottomleft, "Goc Rotor", f"{euler_deg[0]:.2f}")
+    #add_overlay(bottomleft, "Goc_Quay", f"{data.qpos[7]*180/np.pi:.3f} deg")
+
+    # Lấy index của các khớp bằng API mới
+    idx_R1 = mj.mj_name2id(model, mj.mjtObj.mjOBJ_JOINT, "R1")
+    idx_R2 = mj.mj_name2id(model, mj.mjtObj.mjOBJ_JOINT, "R2")
+
+    # Tra địa chỉ qpos và qvel tương ứng
+    joint_qposadr_R1 = model.jnt_qposadr[idx_R1]
+    joint_qposadr_R2 = model.jnt_qposadr[idx_R2]
+
+    joint_qveladr_R1 = model.jnt_dofadr[idx_R1]
+    joint_qveladr_R2 = model.jnt_dofadr[idx_R2]
+
+    # Góc và vận tốc (rad → độ)
+    angle_R1 = np.rad2deg(data.qpos[joint_qposadr_R1]) % 360
+    f_R1   = data.qvel[joint_qveladr_R1] / (2 * np.pi)
+    angle_R2 = np.rad2deg(data.qpos[joint_qposadr_R2]) % 360
+    f_R2   = data.qvel[joint_qveladr_R2] / (2 * np.pi) 
+    Goc_hop = (angle_R1 - angle_R2) /2 
+    # In ra overlay
+    add_overlay(bottomleft, "Goc hop luc", f"{Goc_hop:.2f}")
+    add_overlay(bottomleft, "Tan so R1", f"{f_R1:.2f} Hz")
+    add_overlay(bottomleft, "Tan so R2", f"{f_R2:.2f} Hz")
+
 
 def get_center_of_mass(model, data):
     masses = model.body_mass
@@ -105,14 +141,17 @@ def init_controller(model,data):
 
 m = 0.012   # khối lượng rotor (kg)
 r = 0.014   # bán kính lệch tâm (m)
-f = -30     # tần số quay mong muốn (Hz)
+f = 0     # tần số quay mong muốn (Hz)
 omega_d = 2 * numpy.pi * f  # tốc độ góc mục tiêu (rad/s)
 I = m * r**2  # mômen quán tính xấp xỉ của rotor (kg·m²)
 	
 Kp = 0.0001    # hệ số tỉ lệ (tạo torque khi có sai số tốc độ)
-Kd = 0.00  # hệ số dập tắt (tạo torque chống rung, chống overshoot
+Kd = 0.0   # hệ số dập tắt (tạo torque chống rung, chống overshoot
 
 moving_dict = {}
+#Mo phong ma sast
+mu_s = 0.9
+mu_k = 0.6
 def controller_all(model, data):
     global f_friction,target_ball, kp, b_act
     #mô hình ma sát Stribeck/Columb
@@ -170,7 +209,7 @@ def controller_all(model, data):
 
                 #print("v_horizontal_speed:", v_horizontal_speed)
 
-                if v_horizontal_speed > 1e-6: # Thêm một ngưỡng nhỏ để tránh chia cho 0
+                if v_horizontal_speed > 1e-6: 
                     # Vector đơn vị chỉ hướng của vận tốc
                     v_direction = site_vel_linear[:2] / v_horizontal_speed
                     #print("v_direction:", v_direction)
@@ -189,12 +228,6 @@ def controller_all(model, data):
                     f_friction_y = 0
                     f_friction   = 0.0
                     moving = False
-                # Nếu vận tốc quá nhỏ, coi như không có ma sát trượt để tránh bất ổn
-                # f_friction_x và f_friction_y sẽ giữ giá trị 0.
-                # angle = np.arctan2(fy, fx)
-                # f_friction_x = -mu_k * fz_abs * np.cos(angle)
-                # f_friction_y = -mu_k * fz_abs * np.sin(angle)
-                # f_friction = np.sqrt(f_friction_x**2 + f_friction_y**2)
             # ---- 2. Apply lực ma sát tại sensor ----
             # Lấy vị trí sensor để gán lực 
             if objtype == mj.mjtObj.mjOBJ_SITE:
@@ -213,7 +246,7 @@ def controller_all(model, data):
             pos_site = data.site_xpos[objid].astype(np.float64).ravel()
             #pos_site = data.xipos[body_id]
             #body_id = int(body_id)
-            mj.mj_applyFT(model, data, force, torque, pos_site, body_id, data.qfrc_applied) #bat/tat friction gia lap
+            #mj.mj_applyFT(model, data, force, torque, pos_site, body_id, data.qfrc_applied) #bat/tat friction gia lap
             #print("Torque applied:", torque)
     except Exception as e:
         print("\n=== Exception in controller_all ===")
@@ -233,6 +266,8 @@ def controller_all(model, data):
     #print(f"Friction force: ({f_friction_x:.2f}, {f_friction_y:.2f})")
 
     # Lấy actuator index cho ball
+    #data.qpos[7] = np.pi/6
+    moving_dict[name] = moving
 
     # Gán torque cho 2 rotor quay ngược chiều nhau
     def get_qvel(model, data, joint_name):
@@ -242,30 +277,76 @@ def controller_all(model, data):
     w1 = get_qvel(model, data, "R1")
     w2 = get_qvel(model, data, "R2")
     t = data.time          # thời gian mô phỏng hiện tại
+    #Kd_hold = 1
+
+    idx_R1 = mj.mj_name2id(model, mj.mjtObj.mjOBJ_JOINT, "R1")
+    idx_R2 = mj.mj_name2id(model, mj.mjtObj.mjOBJ_JOINT, "R2")
+    addr_R1 = model.jnt_dofadr[idx_R1]
+    addr_R2 = model.jnt_dofadr[idx_R2]
+
     def mycontroller(model, data):
-        w1 = data.qvel[1]   # tốc độ góc joint R1
-        w2 = data.qvel[2]   # tốc độ góc joint R2
+        w1 = data.qvel[addr_R1]   
+        w2 = data.qvel[addr_R2]   
         err1 = omega_d - w1
         err2 = omega_d - w2
-
-        #công thức PD: t = Kp * (W_desired-W_sim) - Kd*W_sim
         torque1 = Kp * err1 - Kd * w1
         torque2 = Kp * err2 - Kd * w2
         data.ctrl[0] = torque1*1
         data.ctrl[1] = torque2*1
+        #công thức PD: t = Kp * (W_desired-W_sim) - Kd*W_sim
+        #if f != 0:
+            #Rotor bật: chạy điều khiển quay
+        # torque1 = Kp * err1 - Kd * w1
+        # torque2 = Kp * err2 - Kd * w2
+        # else:
+        #     # giữ tại góc hiện tại, torque tỉ lệ nghịch với vận tốc
+        #     torque1 = -Kd_hold * w1 
+        #     torque2 = -Kd_hold * w2 
+
+        data.ctrl[0] = torque1
+        data.ctrl[1] = torque2
+
+
 
     mycontroller(model, data) #bat/tat rotor
 
 
-
-
-
 def keyboard_ball(window, key, scancode, act, mods):
+    global f, omega_d
+    if act == glfw.PRESS:
+        if key == glfw.KEY_H:
+            try:
+                new_f = float(input("Nhập giá trị f mới (Hz): "))
+                f = new_f
+                omega_d = 2 * numpy.pi * f
+                print(f" Đã đổi f = {f} Hz, omega_d = {omega_d:.2f} rad/s")
+            except:
+                print(" Giá trị không hợp lệ!")
 
-    #Reset
-    if key == glfw.KEY_R:
-        mj.mj_resetData(model, data)
-        mj.mj_forward(model, data)
+        rotation_step = np.deg2rad(10) # Xoay 10 độ mỗi lần nhấn
+        if key == glfw.KEY_R:
+            mj.mj_resetData(model, data)
+            mj.mj_forward(model, data)
+         
+        if key == glfw.KEY_G:
+            try:
+                Z_deg = float(input("Nhập góc Z (độ): "))
+                
+                # Cập nhật phần tử Z (index 2) trong rotor_assembly_euler
+                rotor_assembly_euler[0] = np.deg2rad(Z_deg)
+
+                if rotor_assembly_id != -1:
+                    # Chuyển Euler sang quaternion
+                    new_quat = np.zeros(4)
+                    mj.mju_euler2Quat(new_quat, rotor_assembly_euler, 'ZYX')
+
+                    # Ghi trực tiếp vào model
+                    model.body_quat[rotor_assembly_id] = new_quat
+
+                    # Cập nhật lại mô phỏng
+                    mj.mj_forward(model, data)
+            except:
+                print("Giá trị nhập không hợp lệ!")
 
 
 
@@ -283,7 +364,7 @@ def mouse_button(window, button, act, mods):
         window, glfw.MOUSE_BUTTON_RIGHT) == glfw.PRESS)
 
     # update mouse position
-    glfw.get_cursor_pos(window)
+    #glfw.get_cursor_pos(window)
 
 def mouse_move(window, xpos, ypos):
     # compute mouse displacement, save
@@ -379,7 +460,33 @@ time_history = []
 #initialize the controller
 init_controller(model,data)
 
+# đăng ký controller 
+mj.set_mjcb_control(controller_all)
 
+# Lấy lực tác dụng tại site
+sensor_names = ["Site1", "Site2", "Site3", "Site4"]
+sensor_ids = [model.sensor(name).id for name in sensor_names]
+for name in sensor_names:
+    sensor_id = model.sensor(name).id
+    F = data.sensordata[sensor_id : sensor_id + 3]
+    F_friction_dict = {name: 0.0 for name in sensor_names}
+
+# Lấy ten Rotor
+try:
+    rotor_assembly_id = model.body('rotor').id
+    #print(f"Found 'rotor_assembly' body with ID: {rotor_assembly_id}")
+except KeyError:
+    print("Error: Could not find a body named rotor .")
+    exit()
+
+rotor_assembly_euler = np.array([np.pi/6, 0.0, 0.0])
+
+rotor_quat = np.zeros(4)
+mj.mju_euler2Quat(rotor_quat, rotor_assembly_euler, 'ZYX')
+model.body_quat[rotor_assembly_id] = rotor_quat
+mj.mj_forward(model, data)
+# Biến để lưu ID của body, sẽ được gán sau khi load model
+rotor_assembly_id = -1
 
 # đăng ký controller 
 mj.set_mjcb_control(controller_all)
